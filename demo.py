@@ -418,7 +418,7 @@ def run(mode='search', depth=1, use_pro='softmax',
 run(mode='att_run', depth=2, use_pro='norm_sin_2_max_move',
     # If for search:
     search_epoch=3, lr_range=[-5, -2], wd_range=[-4, -2],
-    check_point_save_dir = pro_root + 'Attention_test/rose/search_check_points.txt',
+    check_point_save_dir = pro_root + 'Attention_test/*functions/lr_wd_search.txt',
     # If for run:
     run_epoch=50, lr=0.00026021819225273693, wd=0.0001684884289701931,  ## norm_sin_2_max_move noLrsch, 4 epochs 0.256 set
     record_dir = pro_root + 'Attention_test/',
