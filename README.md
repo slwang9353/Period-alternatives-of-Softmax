@@ -3,6 +3,8 @@ Experimental Demo for our paper
 # 'Escaping the Gradient Vanishing: Periodic Alternatives of Softmax in Attention Mechanism'
 We suggest that replacing the exponential function by periodic functions.
 Through experiments on a simply designed demo referenced to LeViT, our method is proved to be able to alleviate the gradient problem and yield substantial improvements compared to Softmax and its variants.
+
+** Create your own 'dataset' fold, and maybe need to modify the demo.py file for your own dataset except for cifar-10, cifar-100 and Tiny-imageNet.
 # Function available:
     softmax , norm_softmax
     sinmax, norm_sinmax
