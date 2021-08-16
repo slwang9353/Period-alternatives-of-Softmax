@@ -120,7 +120,7 @@ class TransformSingle(nn.Module):
         Q = QVK[:, :, 0: self.d_model]
         K = QVK[:, :, self.d_model: 2 * self.d_model]
         V = QVK[:, :, 2 * self.d_model: 3 * self.d_model]
-        scores_merge = torch.zeros((Q.shape[0], Q.shape[1], Q.shape[1]))
+        scores_merge = []
         heads_v = []
         for h in range(self.heads):
             q = Q[:, :, h * self.d_per_head: h * self.d_per_head + self.d_per_head]
@@ -128,10 +128,11 @@ class TransformSingle(nn.Module):
             v = V[:, :, h * self.d_per_head: h * self.d_per_head + self.d_per_head]
             q_mul_k = torch.matmul(q, k.transpose(2, 1))
 
-            if self.mode == 'run' or self.mode == 'att_run':
+            if self.mode == 'run' :
                 global kq_value, iter_counter
                 if iter_counter % 1000 == 0:
-                    kq_value.append(q_mul_k.detach().numpy())
+                    save_kq = q_mul_k.cpu()
+                    kq_value.append(save_kq.detach().numpy())
                 iter_counter += 1
 
             if self.use_pro == "softmax":
@@ -179,8 +180,7 @@ class TransformSingle(nn.Module):
                 q_mul_k = map_norm(q_mul_k)
                 q_mul_k = torch.sin(q_mul_k)
                 scores = F.softmax(q_mul_k / np.sqrt(self.d_per_head), dim=-1)
-
-            scores_merge += scores
+            scores_merge.append(scores)
             heads_v.append(torch.matmul(scores, v))
         attout = torch.cat(heads_v, dim=-1)
         attout = self.concat_heads(attout) + res
@@ -252,12 +252,15 @@ def check_accuracy_part34(loader, model):
 def attention_extract(test_image_dir, model):
     model.eval()
     with torch.no_grad():
+        out_put = []
         transform = T.Compose([T.ToTensor(), 
                                T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
         x = transform(Image.open(test_image_dir)).unsqueeze(0)
         x = x.to(device=device, dtype=dtype)
         _, attention_maps = model(x)
-    return [layer_attention.numpy() for layer_attention in attention_maps]
+        for layer_attention in attention_maps:
+          out_put.append([h_attention.cpu().numpy() for h_attention in layer_attention])
+    return np.array(out_put)
 
 def For_Train(model, optimizer, loader_train, loader_val, scheduler=None ,mode='search', epochs=1, test_image_dir=None):
     final_acc = 2
@@ -287,6 +290,7 @@ def For_Train(model, optimizer, loader_train, loader_val, scheduler=None ,mode='
             if t % 100 == 0:
                 final_acc = check_accuracy_part34(loader_val, model)
                 accs.append(np.array(final_acc))
+                print(e, 'epoch', t, 'iter', 'Acc = ', final_acc)
         if mode == 'run' or mode == 'att_run':
             print("Epoch:", e)
         if e % 5 == 0 and mode == 'att_run':
@@ -314,7 +318,8 @@ def run(mode='search', depth=1, use_pro='softmax',
         num_class = 200
     accs = None
     losses = None
-    root = './dataset/' + dataset
+
+    root = pro_root + 'dataset/' + dataset
     NUM_TRAIN = 49000
     transform = T.Compose([T.RandomRotation(90),
                         T.RandomHorizontalFlip(p=0.5),
@@ -325,19 +330,23 @@ def run(mode='search', depth=1, use_pro='softmax',
     if dataset == 'cifar10':
         cifar_train = dset.CIFAR10(root, train=True, download=True, transform=transform)
         loader_train = DataLoader(cifar_train, batch_size=32, sampler=sampler.SubsetRandomSampler(range(0, NUM_TRAIN)))
+
         cifar_val = dset.CIFAR10(root, train=True, download=True, transform=transform)
         loader_val = DataLoader(cifar_val, batch_size=512, sampler=sampler.SubsetRandomSampler(range(NUM_TRAIN, 50000)))
 
     if dataset == 'cifar100':
         cifar_train = dset.CIFAR100(root, train=True, download=True, transform=transform)
         loader_train = DataLoader(cifar_train, batch_size=32, sampler=sampler.SubsetRandomSampler(range(0, NUM_TRAIN)))
+
         cifar_val = dset.CIFAR100(root, train=True, download=True, transform=transform)
         loader_val = DataLoader(cifar_val, batch_size=512, sampler=sampler.SubsetRandomSampler(range(NUM_TRAIN, 50000)))
 
     if dataset == 'tiny_imagenet':
         NUM_TRAIN = 95000
+
         cifar_train = get_imagenet(root, train=True, transform=transform)
         loader_train = DataLoader(cifar_train, batch_size=64, sampler=sampler.SubsetRandomSampler(range(0, NUM_TRAIN)))
+
         cifar_val = get_imagenet(root, train=True, transform=transform)
         loader_val = DataLoader(cifar_val, batch_size=512, sampler=sampler.SubsetRandomSampler(range(NUM_TRAIN, 99000)))
 
@@ -386,7 +395,6 @@ def run(mode='search', depth=1, use_pro='softmax',
         np.save(record_dir_acc, np.array(accs))
         np.save(record_dir_train_acc, np.array(train_acc))
         np.save(record_dir_loss, np.array(losses))
-        global kq_value
         kq_value = np.vstack(kq_value)
         print(kq_value.shape)
         np.save(kq_value_dir, kq_value)
@@ -407,20 +415,17 @@ def run(mode='search', depth=1, use_pro='softmax',
 # Mode avilable: search, run, att_run
 # dataset : cifar10, cifar100, tiny_imagenet
 
-run(mode='att_run', depth=2, use_pro='sin_2_max_move',
+run(mode='att_run', depth=2, use_pro='norm_sin_2_max_move',
     # If for search:
-    search_epoch=1, lr_range=[-5, -2], wd_range=[-4, -2],
-    check_point_save_dir = pro_root + 'Attention_test/softmax/lr_wd_search.txt',
+    search_epoch=3, lr_range=[-5, -2], wd_range=[-4, -2],
+    check_point_save_dir = pro_root + 'Attention_test/rose/search_check_points.txt',
     # If for run:
-    run_epoch=50, lr=0.00015600073246702803, wd=0.0001619069067958863,
-    record_dir = pro_root + 'additional_test/',
+    run_epoch=50, lr=0.00026021819225273693, wd=0.0001684884289701931,  ## norm_sin_2_max_move noLrsch, 4 epochs 0.256 set
+    record_dir = pro_root + 'Attention_test/',
     # If for att_run
-    test_image_dir = 'att_test_sample.JPEG',  
+    test_image_dir = pro_root + 'att_test_sample.JPEG',  
     # Basic set:
     dataset='cifar100', heads=8, d_model=512, lrsch=False, optim='Adam')
-
-
-
 
 
 
