@@ -421,7 +421,7 @@ run(mode='att_run', depth=2, use_pro='norm_sin_2_max_move',
     check_point_save_dir = pro_root + 'Attention_test/*functions/lr_wd_search.txt',
     # If for run:
     run_epoch=50, lr=0.00026021819225273693, wd=0.0001684884289701931,  ## norm_sin_2_max_move noLrsch, 4 epochs 0.256 set
-    record_dir = pro_root + 'Attention_test/',
+    record_dir = pro_root + 'Attention_test/*functions/',
     # If for att_run
     test_image_dir = pro_root + 'att_test_sample.JPEG',  
     # Basic set:
