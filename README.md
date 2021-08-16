@@ -25,4 +25,4 @@ Through experiments on a simply designed demo referenced to LeViT, our method is
             Same as the run mode but:
             (1) No kq_value record;
             (2) Every 5 epoch, input a test image and record the attention score map of each head of each layer.
-                Saved in 'attention_maps.npy'
+                Saved in 'Attention_test/attention_maps.npy' 
